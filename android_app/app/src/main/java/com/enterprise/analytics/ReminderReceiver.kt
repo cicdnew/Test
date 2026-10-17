@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.enterprise.analytics.ui.ReminderAlertActivity
+import androidx.core.content.ContextCompat
+import com.enterprise.analytics.service.FloatingReminderService
+import android.provider.Settings
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -16,20 +18,22 @@ class ReminderReceiver : BroadcastReceiver() {
         val videoUriStr = intent.getStringExtra("REMINDER_VIDEO_URI")
         val reminderId = intent.getIntExtra("REMINDER_ID", 0)
 
-        val alertIntent = Intent(context, ReminderAlertActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("REMINDER_TITLE", title)
-            if (videoUriStr != null) {
-                putExtra("REMINDER_VIDEO_URI", videoUriStr)
-            }
-        }
+        // Get customized colors from shared preferences
+        val sharedPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val bgColor = sharedPrefs.getString("floating_bg_color", "#FFFFFF")
+        val textColor = sharedPrefs.getString("floating_text_color", "#000000")
 
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            reminderId,
-            alertIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        if (Settings.canDrawOverlays(context)) {
+            val serviceIntent = Intent(context, FloatingReminderService::class.java).apply {
+                putExtra("REMINDER_TITLE", title)
+                if (videoUriStr != null) {
+                    putExtra("REMINDER_VIDEO_URI", videoUriStr)
+                }
+                putExtra("BG_COLOR", bgColor)
+                putExtra("TEXT_COLOR", textColor)
+            }
+            ContextCompat.startForegroundService(context, serviceIntent)
+        }
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -42,14 +46,27 @@ class ReminderReceiver : BroadcastReceiver() {
             notificationManager.createNotificationChannel(channel)
         }
 
-        val notification = NotificationCompat.Builder(context, "reminder_channel")
+        val notificationBuilder = NotificationCompat.Builder(context, "reminder_channel")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Reminder: $title")
-            .setContentText("Tap to view details.")
+            .setContentText(if (Settings.canDrawOverlays(context)) "Floating reminder shown." else "Reminder triggered. Missing overlay permission. Tap to enable.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setFullScreenIntent(pendingIntent, true)
             .setAutoCancel(true)
-            .build()
+
+        if (!Settings.canDrawOverlays(context)) {
+            val settingsIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                reminderId,
+                settingsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            notificationBuilder.setContentIntent(pendingIntent)
+        }
+
+        val notification = notificationBuilder.build()
 
         notificationManager.notify(reminderId, notification)
     }

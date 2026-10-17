@@ -16,11 +16,12 @@ import com.enterprise.analytics.ui.panels.AgentStatusPanel
 import com.enterprise.analytics.ui.panels.ChatPanel
 import com.enterprise.analytics.ui.panels.ToolActivityPanel
 import com.enterprise.analytics.ui.panels.PlannerPanel
+import com.enterprise.analytics.ui.panels.SettingsPanel
 
 @Composable
 fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Chat", "Planner", "Agent Status", "Tool Activity")
+    val tabs = listOf("Chat", "Planner", "Status", "Tools", "Settings")
 
     Column(modifier = modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTabIndex) {
@@ -38,6 +39,7 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             1 -> PlannerPanel(viewModel)
             2 -> AgentStatusPanel(viewModel)
             3 -> ToolActivityPanel(viewModel)
+            4 -> SettingsPanel()
         }
     }
 }
